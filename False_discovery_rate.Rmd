@@ -1,0 +1,244 @@
+---
+title: "BST235 HW4"
+author: "Jonathan Luu"
+date: "12/5/2020"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(MASS)
+library(clime)
+library(glmnet)
+```
+
+# Question 1
+
+## Part 1a
+
+```{r}
+d<-500
+n<-300 
+Sigma<-diag(d)
+X<-mvrnorm(n, mu=rep(0,d), Sigma)
+beta<-rep(10,20)
+eps<-rnorm(n)
+y<-X[,1:20]%*%beta+eps
+
+res<-clime(X, standardize=FALSE, lambda=0.1)
+prec <- res$Omegalist[[1]]
+```
+
+```{r}
+runDL <- function(){
+   eps<-rnorm(n)
+   y<-X[,1:20]%*%beta+eps
+   beta_hat<-matrix(coef(cv.glmnet(X,y), s="lambda.min")[-1])
+   debiased_beta <- beta_hat + (1/n)*prec%*%t(X)%*%(y-X%*%beta_hat)
+   sqrt(n)*(debiased_beta[1]-10)/sqrt(prec[1,1])
+}
+
+results <- numeric(100)
+for (i in 1:100){
+   results[i] <- runDL()
+}
+
+qqnorm(results)
+qqline(results, col = "steelblue", lwd = 2)
+```
+```{r}
+n=500
+X<-mvrnorm(n, mu=rep(0,d), Sigma)
+res<-clime(X, standardize=FALSE, lambda=0.1)
+prec <- res$Omegalist[[1]]
+
+results <- numeric(100)
+for (i in 1:100){
+   results[i] <- runDL()
+}
+
+qqnorm(results)
+qqline(results, col = "steelblue", lwd = 2)
+```
+
+Both QQ plots look relatively close to the standard normal line. The n=500 line is closer than n=300 though which is expected. 
+
+
+## Part 1b
+
+Let $n_0$ be the number of true null hypotheses. 
+
+If $n_0=n$, we incorrectly reject the null only if $p_1 \le \frac{\alpha}{n}$ which has probability $\alpha$.
+
+If $n_0=n-1$, we incorrectly reject the null if:
+
+1) $H_1$ is one of the true hypotheses and $p_1 \le \frac{\alpha}{n}$.
+2) $H_1$ is not one of the true hypotheses, so $p_1 \le \frac{\alpha}{n}$ and $p_2 \le \frac{\alpha}{n-1}$.
+
+Let $p_{i0}$ be the ith smallest p-value among the $n_0$ true hypotheses. There can only be an incorrect rejction if $p_{i0} \le \frac{\alpha}{n-1}$, so the chance of an incorrect rejection $\le \alpha$. Similarly, for $n_0=n-2,...1$, the chance again is at most $\alpha$ through the same argument. Since $P(\cup_i A_i) \le \sum_i P(A_i)$, the probability of these individual tests is $\le \alpha$.
+
+Compared to Bonferonni, the Holm procedure is uniformly more powerful. Bonferonni control the FWER by dividing by the number of tests which reduces the p-value you compare against significantly more compared to the Holms method since Bonferonni does not exploit the known correlation between the tests. Therefore, Holms is much more liberal of the two. 
+
+\newpage
+
+# Question 2
+
+First, the following identity:
+
+$$
+\begin{aligned}
+\sum_{k=1}^N I[p_i \le \alpha_k/n]I[R=k] &= \sum_{k=1}^N\sum_{j=1}^{N_0} I[p_i \le \alpha_k/n]I[R_{N_0}=k]\\
+&=\sum_{j=1}^{N_0}\sum_{k=1}^N I[k \in N_0]I[R_{N_0}=k]\\
+&=\sum_{j=1}^{N_0}kI[R_{N_0}=k]\\
+&=k \frac{\psi_i}{1 \vee R}
+\end{aligned}
+$$
+
+$$
+\begin{aligned}
+\text{FDR} &= \sum_{b=1}^{N-k}\sum_{a=1}^k \frac{a}{a+b}I[R=k]\\
+&=\sum_{b=1}^{N-k}\sum_{a=1}^k \frac{a}{a+b} \frac{\sum_{k=1}^N I[p_i \le \alpha_k/n]I[R=k]}{k}\\
+&=\sum_{k=1}^N\sum_{l=1}^k\frac{I[p_i\in(\alpha(l-1)/N, \alpha l/n)]I[R=k]}{k}
+\end{aligned}
+$$
+
+Note that
+
+$$
+\begin{aligned}
+&P(R=k|p_i \le a_k/n) \le P(R \ge k|p_i \le a_k/n) - P(R=k+1|p_i \le a_{k+1}/n)\\
+&\Rightarrow \sum_{k=1}^NP(R=k|p_i \le a_k/n) \le \sum_{k=1}^{N-1}P(R \ge k|p_i \le a_k/n) - P(R=k+1|p_i \le a_{k+1}/n) + P(R= p_i \le \alpha_N/n)\\
+&\Rightarrow \sum_{k=l}^N\frac{I(R=k)}{k} \le \frac{I(R \ge l)}{l} \le \frac{1}{l}
+\end{aligned}
+$$
+
+Using the uniform distribution of p-values and $\sum_{k=1}^N 1/k \le lnN + 1$,
+
+$$
+\begin{aligned}
+&\sum_{k=1}^N\sum_{l=1}^k\frac{I[p_i\in(\alpha(l-1)/N, \alpha l/n)]I[R=k]}{k}\\
+&\le\sum_{l=1}^N\sum_{k=l}^N \frac{\alpha}{N} \frac{I[p_i\in(\alpha(l-1)/N, \alpha l/n)]I[R=k]}{k} \frac{1}{P(p_i \le \alpha_k/n)}\\
+&\le \frac{N_0}{N}ln(N+1)\alpha
+\end{aligned}
+$$
+
+\newpage
+# Question 3
+
+## Part 3a
+
+Yes, I expect this to control the FDR at level $\alpha$ because it satisfies the three assumptions of knock-off. First, $W_i(X_i, \tilde{X}_i)$ is anti-symmetric due to the symmetric nature of the normal distribution. Next, for $i \in H_0$, we can see that $W_i \stackrel{d}{=}-W_i$. Lastly, $sgn(W_i)| |W_1|,..., |W_d||$ are iid fair coin flips.
+
+## Part 3b
+
+```{r}
+n<-1000
+alpha<-0.05
+
+getStild <- function(t, Xi, Xi_tild){
+   sum(abs(Xi_tild) >= t & abs(Xi_tild) > abs(Xi))
+}
+
+getS <- function(t,  Xi, Xi_tild){
+   sum(abs(Xi) >= t & abs(Xi_tild) <= abs(Xi))
+}
+
+sTau <- function(t,  Xi, Xi_tild){
+   denom <- getS(t,  Xi, Xi_tild)
+   
+   if (denom < 1){
+      denom <- 1
+   }
+   
+   (1+getStild(t,  Xi, Xi_tild))/(denom)
+}
+
+getLowestTau <- function(Xi, Xi_tild){
+   getIndex<-seq(0,10,0.01)
+   for (i in 1:length(getIndex)){
+      check<-sTau(getIndex[i],  Xi, Xi_tild)
+   
+      if (check < alpha){
+         return(getIndex[i])
+      }
+   }
+   return(50)
+}
+
+runFn <- function(n1,mu1){
+   Xi<-c(rnorm(n1,mu1,1), rnorm(n-n1,0,1))
+   Xi_tild <- rnorm(n,0,1)
+   S_index <- 1:n1
+   V_index <- (n1+1):n
+   
+   tau <- getLowestTau(Xi, Xi_tild)
+   V <- sum(abs(Xi[V_index]) >= tau & abs(Xi_tild[V_index]) <= abs(Xi[V_index]))
+   S <- sum(abs(Xi[S_index]) >= tau & abs(Xi_tild[S_index]) <= abs(Xi[S_index]))
+   if ((V+S)==0)
+      S<-1
+   FDR<-V/(V+S)
+   Power<-S/(n1)
+   
+   c(FDR,Power)
+}
+
+FDR <- Power <- numeric(100)
+
+# Setting 1
+for (i in 1:100){
+   result <- runFn(200, 5)
+   FDR[i] <- result[1]
+   Power[i] <- result[2]
+}
+
+mean(FDR)
+mean(Power)
+
+# Setting 2
+for (i in 1:100){
+   result <- runFn(200,2)
+   FDR[i] <- result[1]
+   Power[i] <- result[2]
+}
+
+mean(FDR)
+mean(Power)
+```
+
+In scenario one due to the big difference of the alternative generated variables, the power is much higher (~99%). The FDR is controlled at $\alpha=0.05$. In scenario two, the FDR is still controlled at $\alpha=0.05$. However, the power is much lower since the alternative generated variables are much closer. Compared to BH which gives a bound of $\frac{m_0}{m}\alpha$ on the FDR, the BH gives a lower FDR and is more powerful compared to knockoff.
+
+\newpage
+## Part 3c
+
+```{r}
+# Setting 1
+for (i in 1:100){
+   result <- runFn(50, 5)
+   FDR[i] <- result[1]
+   Power[i] <- result[2]
+}
+
+mean(FDR)
+mean(Power)
+
+# Setting 2
+for (i in 1:100){
+   result <- runFn(50,2)
+   FDR[i] <- result[1]
+   Power[i] <- result[2]
+}
+
+mean(FDR)
+mean(Power)
+```
+
+FDR is still controlled under $\alpha=0.05$. However, the power is lower in both scenarios. A large issue I ran into is when the alternative mean is close to 0, leading to very few or no values of t that satisfy the inequality. This lead to $t=\infty$ and no values being chosen. 
+
+
+
+
+
+
+
+
+

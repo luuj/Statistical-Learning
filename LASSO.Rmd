@@ -1,0 +1,445 @@
+---
+title: "BST235 HW2"
+author: "Jonathan Luu"
+date: "10/16/2020"
+output: pdf_document
+header-includes:
+- |
+  ```{=latex}
+  \usepackage{amsmath}  
+  ```
+---
+
+```{r setup, include=FALSE, comment=NA}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Question 1
+
+## Part 1.1.a ($\hat{\theta}_j^{SFT}$ Proof)
+
+$$
+\begin{aligned}
+\hat{\theta}_j^{SFT} &= \underset{\theta}{argmin}\left[Y^TY + \theta^T \theta - 2Y^T\theta + 4\tau||\theta||_1 \right]\\
+&=\underset{\theta}{argmin}\left[Y^TY + \sum_{j=1}^d \left(\theta_j^2 - 2Y^T\theta_j + 4\tau|\theta_j| \right) \right]
+\end{aligned}
+$$
+
+For $\theta_j >0$, setting the derivative to 0 gives
+
+$$
+\begin{aligned}
+2\theta_j - 2Y^T + 4\tau = 0\\
+\hat{\theta}_j =Y^T - 2\tau\\
+\Rightarrow Y^T > 2\tau
+\end{aligned}
+$$
+
+For $\theta_j < 0$, we get
+
+$$
+\begin{aligned}
+2\theta_j - 2Y^T - 4\tau = 0\\
+\hat{\theta}_j =Y^T + 2\tau\\
+\Rightarrow Y^T < -2\tau
+\end{aligned}
+$$
+
+For $\theta_j=0$, $\hat{\theta}_j$ must be 0. Therefore, 
+$$\hat{\theta}_j^{SFT} = \left\{\begin{array}{@{}ll@{}}Y_j-2\tau & \text{if}\ Y_j>2\tau \\ 0 & \text{if}\ |Y_j| \le 2\tau \\Y_j+2\tau & \text{if}\ Y_j<-2\tau \\  \end{array}\right.$$
+is equivalent to $\underset{\theta}{argmin}\left[||Y-\theta||^2_2 + 4\tau||\theta||_1 \right]$.
+
+\newpage
+## Part 1.1.b ($\hat{\theta}_j^{HRD}$ Proof)
+
+$$
+\begin{aligned}
+\hat{\theta}_j^{HRD} = \underset{\theta}{argmin}\left[||Y-\theta||^2_2 + 4\tau^2||\theta||_0 \right]\\
+\end{aligned}
+$$
+
+If $\theta=0$, then the l0 norm is also 0 and the penalty is $Y_j^2$ as long as $Y_j^2 \le 4\tau^2$ or $|Y_j| \le 2\tau$. Similarly, if $\theta \ne 0$, then the minimum cost is $2\tau$ when $\theta_j=Y_j$, so $\theta_j=Y_j$ when $|Y_j|> 2\tau$. Therefore, we get
+
+$$\hat{\theta}_j^{HRD} = \left\{\begin{array}{@{}ll@{}}Y_j & \text{if}\ |Y_j|>2\tau \\ 0 & \text{if}\ |Y_j| \le 2\tau  \end{array}\right.$$
+
+
+
+## Part 1.2.a (SCAD Minimizer)
+
+Looking at the components that contain $\theta$,
+
+$$
+\hat{\theta}^{SCAD} = \underset{\theta}{argmin} \left[-2y\theta + \theta^2 + 2  
+\left\{\begin{array}{@{}ll@{}}\tau|\theta_j| & \text{if}\ |\theta_j| \le \tau \\ 
+-\frac{|\theta_j|^2 - 2a\tau|\theta_j| + \tau^2}{2(a-1)} & \text{if}\ \tau < |\theta_j| \le a\tau \\
+\frac{(a+1)\tau^2}{2} & \text{if}\ |\theta_j| > a\tau\\  
+\end{array}\right.
+\right]
+$$
+
+The derivative of this is:
+
+$$
+\hat{\theta}^{SCAD} = \underset{\theta}{argmin} \left[-2y + 2\theta + 2  
+\left\{\begin{array}{@{}ll@{}}sgn(y)\tau\\ 
+-\frac{a\tau-|\theta_j|}{a-1}\\
+0\\  
+\end{array}\right.
+\right]
+$$
+
+For $|\theta_j| \le \tau$, setting the derivative to 0:
+
+$$
+\begin{aligned}
+-2y + 2\theta + 2sgn(y)\tau \stackrel{set}{=} 0\\
+\hat{\theta} = (y-\tau)sgn(y)
+\end{aligned}
+$$
+
+For $\tau < |\theta_j| \le a\tau$:
+
+$$
+\begin{aligned}
+-2y + 2\theta + \frac{2a\tau}{a-1} - \frac{2|\theta_j|}{a-1}  \stackrel{set}{=} 0\\
+\hat{\theta} = \left(y - \frac{a\tau}{a-1} \right) \left(\frac{a-1}{a-2} \right)\\
+= \frac{(a-1)y - sgn(y)a\tau }{a-2}
+\end{aligned}
+$$
+
+For $|\theta_j| > a\tau$ :
+
+$$
+\begin{aligned}
+-2y + 2\theta \stackrel{set}{=} 0 \\
+\hat{\theta} = y
+\end{aligned}
+$$
+
+Therefore, the solution that minimizes SCAD is 
+
+$$
+\hat{\theta}^{SCAD} = 
+\left\{\begin{array}{@{}ll@{}}(z_j-\tau)sgn(z_j) & \text{if}\ |z_j| \le 2\tau \\ 
+\frac{(a-1)z_j - sgn(z_j)a\tau }{a-2} & \text{if}\ 2\tau < |z_j| \le a\tau \\
+z_j & \text{otherwise}\  
+\end{array}\right.
+$$
+
+\newpage
+## Part 1.2.b (ALASSO Minimizer) 
+
+Looking at the components that contain $\theta$,
+
+$$
+\hat{\theta}^{ALASSO} = -2y\theta + \theta^2 + 2\tau \frac{|\theta_j|}{|Y_j|^\gamma}
+$$
+
+Taking the derivative and setting to 0, we get for $\theta>0$:
+
+$$
+\begin{aligned}
+-2y + 2\theta + \frac{\tau}{|Y_j|^\gamma} \stackrel{set}{=} 0\\
+\hat{\theta} = y - \frac{\tau}{|Y|^\gamma}\\
+y >\frac{\tau}{|Y|^\gamma}\\
+Y|Y|^\gamma>\tau
+\end{aligned}
+$$
+
+For $\theta<0$:
+
+$$
+\begin{aligned}
+-2y + 2\theta - \frac{2\tau}{|Y_j|^\gamma} \stackrel{set}{=} 0\\
+\hat{\theta} = y + \frac{\tau}{|Y|^\gamma}\\
+Y|Y|^\gamma < -\tau
+\end{aligned}
+$$
+
+For $\theta=0$:
+
+$$
+\begin{aligned}
+-2y + 2\theta  \stackrel{set}{=} 0\\
+\hat{\theta} = Y
+\end{aligned}
+$$
+
+## Part 1.2.c (Plots)
+
+```{r, echo=FALSE}
+hrd.x <- c(-2,-1,-1,0,1,1,2)
+hrd.y <- c(-2, -1, 0,0,0,1,2)
+plot(hrd.x,hrd.y, type="l", main="HRD Plot", xlab="Yj", ylab="Theta_hat", ylim=c(-2,2))
+
+sft.x <- -2:2
+sft.y <- c(-1,0,0,0,1)
+plot(sft.x,sft.y, type="l", main="SFT Plot", xlab="Yj", ylab="Theta_hat", ylim=c(-2,2))
+
+scad.x <- -3:3
+scad.y <- c(-3, -1, 0,0,0,1,3)
+plot(scad.x,scad.y, type="l", main="SCAD Plot", xlab="Yj", ylab="Theta_hat", ylim=c(-2,2))
+
+al.x <- -3:3
+al.y <- c(-3.0, -1.3, 0,0,0,1.3,3)
+plot(al.x,al.y, type="l", main="ALASSO Plot", xlab="Yj", ylab="Theta_hat", ylim=c(-2,2))
+```
+
+
+These plots assume $\tau=\frac{1}{2}$. HRD, SCAD and adaptive LASSO are unbiased for large $Y_j$ since they do not follow the diagonal though 0 line.
+
+\newpage
+# Question 2
+
+## Part 2.1
+
+Since the solution set is convex, $a\hat{\beta_1} + (1-a)\hat{\beta}_2$ is also a solution for any $0<a<1$. Suppose $X\hat{\beta_1} \ne X\hat{\beta_2}$, and let m be the minimum obtained by $\hat{\beta_1}$ and $\hat{\beta_2}$.
+
+$$
+\frac{1}{2}||Y - X(a\hat{\beta_1} + (1-a)\hat{\beta}_2) ||_2^2 + \lambda||a\hat{\beta_1} + (1-a)\hat{\beta}_2||_1 < am + (1-a)m
+$$
+
+where the strict inequality comes from both $||Y - X(a\hat{\beta_1} + (1-a)\hat{\beta}_2) ||_2^2$ and $||a\hat{\beta_1} + (1-a)\hat{\beta}_2||_1$ being strictly convex (Definition 2.2 - Lab 5). Since $am+(1-a)m=m$ and $a\hat{\beta_1} + (1-a)\hat{\beta}_2$ was a solution with minimized value m, stating that m < m is a contradiction. Therefore, $X\hat{\beta_1}$ and $X\hat{\beta_2}$ must have the same prediction.
+
+## Part 2.2
+
+Using the first order optimization condition, we have
+
+$$
+\begin{aligned}
+0 &\in \partial \frac{1}{2} ||Y-X\beta||^2_2 + \lambda||\beta||_1\\
+\Leftrightarrow0 &\in \left\{-X^T(Y-X\beta) + \lambda \partial||\beta||_1 \right\}\\
+&=X^T(Y-X\beta) = \lambda sgn(\beta_j)
+\end{aligned}
+$$
+
+Therefore, we have
+
+$$
+\begin{aligned}
+\lambda &= 
+\left\{\begin{array}{@{}ll@{}}X^T(Y-X\hat{\beta}) & \text{if}\ \hat{\beta} > 0 \\ 
+-X^T(Y-X\hat{\beta}) & \text{if}\ \hat{\beta} < 0  \\
+\end{array}\right.\\
+\lambda &\ge |X^T(y-X\hat{\beta})| \;\,\qquad \text{if}\ \hat{\beta} = 0
+\end{aligned}
+$$
+
+## Part 2.3
+
+Suppose $\hat{\beta}_j >0$. From 2.1 and 2.2, we have $\lambda = X^T(Y-X\hat{\beta})$ and all solutions have the same prediction $X\hat{\beta}$. Since $\lambda > ||X^TY||_{\infty}$ from the problem definition, $\lambda - X^TY$ is positive, but $\lambda - X^TY=-X^TX\hat{\beta}$ is always negative on the RHS, which is a contradiction.
+
+Suppose $\hat{\beta}_j <0$. Similarly, $\lambda + X^TY$ is positive, but $X^TX\hat{\beta}$ is always negative, which is a contradiction.
+
+Therefore, $\hat{\beta}_j$ must be 0. This can also be seen from 2.2, since $X\hat{\beta}=0$:
+
+$$
+\begin{aligned}
+\lambda &\ge |X^T(Y-X\hat{\beta})|\\
+\lambda &\ge |X^TY|
+\end{aligned}
+$$
+
+Furthermore, suppose we have $\beta_1=0$ and we have $\beta_2$ which we do not know the value of. If we have $\beta_1=0$, then the solution $X\beta_1=0$ as well. However, from 2.1, we have that all solutions $X\beta$ are the same, which implies that $\beta_2$ is also equal to 0, and all possible lasso solutions must be equal to 0. 
+
+If we reduce $\lambda$ to just below $||X^TY||_{\infty}$, since the definition of the infinity norm is the maximum magnitude value of $X^TY$ regardless of sign, all other values of $X^TY$ will still be less than $\lambda$ and therefore have a minimizer of 0. The only exception to this will be $\beta_{j1}$, where $j1=\underset{1\le j \le d}{argmax}|X_j^TY|$, which is the maximum value of $X^TY$ described above. Therefore, this $\beta$ term will be the first non-zero coefficient.
+
+\newpage
+## Part 2.4
+
+From 2.2, we have $X^T(Y-X\beta) = \lambda sgn(\beta_j)$. Plugging in $\lambda_1, \lambda_0$ and their minimizers $\hat{\beta}(\lambda_1), \hat{\beta}(\lambda_0)$, we get 
+
+$$
+\begin{aligned}
+X^TY - X^TX(\hat{\beta}(\lambda_1)-\hat{\beta}(\lambda_0)) &= \lambda_1 - \lambda_0\\
+(\hat{\beta}(\lambda_1)-\hat{\beta}(\lambda_0))&=-(\lambda_1-\lambda_0)\gamma_0
+\end{aligned}
+$$
+
+where $\gamma_0=(X^TX - X^TY)^{-1}$ is a vector. Letting $\lambda_1=\lambda$, we get 
+
+$$
+\hat{\beta}(\lambda) = \hat{\beta}(\lambda_0) - (\lambda - \lambda_0)\gamma_0
+$$
+
+Furthermore, we can see for all $\theta\in[0,1]$, $\theta\hat{\beta}(\lambda_0) + (1-\theta)\hat{\beta}(\lambda_1)$ satisfies the optimality conditions for $\lambda = \theta\lambda_0 + (1-\theta)\lambda_1$ and that $\hat{\beta}(\theta\lambda_0 + (1-\theta)\lambda_1) = \theta\hat{\beta}(\lambda_0) + (1-\theta)\hat{\beta}(\lambda_1)$. Therefore, under these conditions, the path between $\lambda_0$ and $\lambda_1=\lambda$ is a line segment, so there must exist a vector $\gamma_0$ such that $\hat{\beta}(\lambda) = \hat{\beta}(\lambda_0) - (\lambda - \lambda_0)\gamma_0$.
+
+
+## Part 2.5
+In 2.4, we proved that any $\lambda_0 \le \lambda \le \lambda_1$ with the same sign and support is a line segment and therefore piecewise linear. Since there are only a finite # of supports m ($m\in[1,p]$) and two signs (-1, 1), the #  of piecewise segments is finite and bounded by the # of distinct combinations of these supports and signs.
+
+Suppose $m\in[1,p]$ are the different supports. If we consider two distinct $\lambda$'s, $\lambda_0$ and $\lambda_1$, they must meet the following constraints from 2.2:
+
+$$
+\begin{aligned}
+\lambda \ge |X^T(Y-X\hat{\beta}_m(\lambda))| \qquad &\text{if} \; \hat{\beta}_j=0\\
+sgn(\hat{\beta}_m(\lambda))\hat{\beta}_m(\lambda) > 0 \qquad &\text{otherwise}
+\end{aligned}
+$$
+
+However, since $\hat{\beta}_m(\lambda)$ is piecewise linear, this implies that these constraints must hold at every $\lambda$ between $\lambda_0$ and $\lambda_1$. This contradicts the idea that $\lambda_0$ and $\lambda_1$ are distinct solutions. Therefore, all solutions with the same sign and support can only occur once, so the # of piecewise segments is limited by these distinct combiations of signs and supports.
+
+Since there are a finite # of piecewise segments, $\underset{\lambda \rightarrow 0^+}{lim} \hat{\beta}(\lambda) = \hat{\beta}^{CS}$ must always happen at the last piecewise segment. At $\lambda=0$, we also have from 2.2:
+
+$$
+|X_m^T(Y-X\hat{\beta_0})| = 0
+$$
+
+for all $m\in[1,p]$ and all $\beta_0$ such that $Y=X\beta_0$. Therefore, $\hat{\beta}_0$ is a least squares solution. 
+
+However, suppose there exists another solution less than $\hat{\beta}_0$: $||\hat{\beta}(\lambda)||_1 < ||\beta_0(\lambda)||_1$. By continuity, we have
+
+$$
+\begin{aligned}
+||Y-X\hat{\beta}(\lambda)||^2_2 + \lambda||\hat{\beta}(\lambda)||_1 &< ||Y-X\beta_0(\lambda)||^2_2 + \lambda||\beta_0(\lambda)||_1\\
+\end{aligned}
+$$
+
+However, this contradicts that $\hat{\beta_0}$ is a solution at $\lambda$, so $\beta_0$ achieves the minimum l1 norm over all solutions which is $\hat{\beta}^{CS}$.
+
+\newpage
+## Part 2.6
+
+```{r, message=FALSE, cache=TRUE, warning=FALSE}
+set.seed(123)
+library(glmnet)
+
+# Sample size and number of variables
+n <- 1000
+p <- 3000
+
+# Generate X and Y
+X <- matrix(rnorm(n * p), ncol = p)
+Y <- apply(X[,1:5], 1, sum) + rnorm(n)
+
+fm <- glmnet(X, Y, family="gaussian", alpha=1)
+plot(fm, xvar="lambda")
+```
+
+Using only 5 real predictors, we can see the 5 different lines near the top of the graph being shrunk to 0 as lambda increases, and the other 95 predictors staying relatively near 0 and eventually reduced to 0. We can also see that each path is piecewise linear with respect to lambda as there are no sudden jumps or breaks for any of the lines.
+
+
+\newpage
+# Question 3
+
+## Part 3.1
+
+Similar to 2.2, we get the derivative of the square root Lasso and set it to 0:
+
+$$
+\begin{aligned}
+\partial \frac{1}{\sqrt{n}}||Y-X\beta||_2 + \lambda\partial||\beta||_1\\
+=\frac{-X^T(Y-X\beta)}{\sqrt{n}||Y-X\beta||_2 } + \lambda sgn(\beta_j) \stackrel{set}{=} 0\\
+\lambda \sqrt{n}||Y-XB||_2 =\frac{X^T(Y-X\beta)}{sgn(\beta_j)}
+\end{aligned}
+$$
+
+From part 2.2, we found that the KKT conditions for normal Lasso were:
+
+$$
+\frac{n}{2}\tau=\frac{X^T(Y-X\beta)}{sgn(\beta_j)}
+$$
+
+Setting the two equal to one another, we get
+
+$$
+\tau = \frac{2}{\sqrt{n}}\lambda ||Y-XB||_2
+$$
+
+Since both $\frac{2}{\sqrt{n}}$ and $||Y-XB||_2$ are always positive, for any $\lambda \in (0,\infty)$, the support of $\tau$ remains the same. Therefore, there always exists a $\tau$ such that the solution of the square root Lasso is the same as the solution of square root Lasso.
+
+## Part 3.2
+
+Using the zero order optimization condition, we have
+
+$$
+\begin{aligned}
+\frac{1}{\sqrt{n}}||Y-X\hat{\beta}||_2 + \lambda||\hat{\beta}||_1 \le \frac{1}{\sqrt{n}}||Y-X\beta^*||_2 + \lambda||\beta^*||_1 \\
+\frac{1}{\sqrt{n}}||Y-X\hat{\beta}||_2 - \frac{1}{\sqrt{n}}||Y-X\beta^*||_2  \le \lambda||\beta^*||_1 - \lambda||\hat{\beta}||_1
+\end{aligned}
+$$
+
+By convexity of the mapping $\beta \rightarrow ||Y-XB||_2$ and the inequality $f(y)-f(x) \ge <\nabla f(x),y-x>$, we have
+
+$$
+\begin{aligned}
+\frac{-X^T(Y-X\beta^*)}{\sqrt{n}||Y-X\beta^*||_2}(\hat{\beta}-\beta^*) &\le \frac{1}{\sqrt{n}}||Y-X\hat{\beta}||_2 - \frac{1}{\sqrt{n}}||Y-X\beta^*||_2\\
+<\frac{-X^T\epsilon}{\sqrt{n}||\epsilon||_2}, \Delta> &\le \frac{1}{\sqrt{n}}||Y-X\hat{\beta}||_2 - \frac{1}{\sqrt{n}}||Y-X\beta^*||_2\\
+0 &\le \frac{\epsilon^TX\Delta}{\sqrt{n}||\epsilon||_2} + \lambda||\beta^*||_1 - \lambda||\hat{\beta}||_1\\
+0 &\le\frac{||X^T\epsilon||_{\infty}}{\sqrt{n}||\epsilon||_2} ||\Delta||_1 + \lambda||\beta^*_S||_1 - \lambda||\hat{\beta}_S||_1 - \lambda||\hat{\beta}_{S^c}||_1 \qquad \text{(Holder's Ineq.)}\\
+0 &\le \frac{\lambda}{2} ||\Delta||_1 + \lambda||\Delta_S||_1 - \lambda||\Delta_{S^c}||_1 \qquad \left(\lambda \ge 2\frac{||X^T\epsilon||_{\infty}}{\sqrt{n}||\epsilon||_2}\right) \\
+0 &\le \frac{\lambda}{2}\left(3||\Delta_S||_1 - ||\Delta_{S^c}||_1 \right)\\
+||\Delta_{S^c}||_1 &\le 3||\Delta_S||_1
+\end{aligned}3
+$$
+
+## Part 3.3
+
+Applying the 1st order optimality condition, 
+
+$$
+\begin{aligned}
+\Delta \frac{1}{\sqrt{n}}||Y-X\hat{\beta}||_2 + \lambda \partial||\hat{\beta}||_1 &= 0\\
+\frac{-X^T(Y-X\hat{\beta})}{\sqrt{n}||Y-X\hat{\beta}||_2} + \lambda sgn(\hat{\beta}) &= 0\\
+\end{aligned}
+$$
+
+Substituting in $Y=X\beta^*+\epsilon$ and $\Delta=\hat{\beta}-\beta^*$, we get:
+
+$$
+\begin{aligned}
+X^T(X\beta^* + \epsilon - X\hat{\beta}) &= \sqrt{n}||Y-X\hat{\beta}||_2 \lambda sgn(\hat{\beta})  &(Y=X\beta*+\epsilon)\\
+-X^T\epsilon +X^TX(\Delta) &= \sqrt{n}||Y-X\hat{\beta}||_2 \lambda sgn(\hat{\beta}) &(\Delta=\hat{\beta}-\beta^*)\\
+\frac{1}{n}||X \Delta||^2_2 &= <\frac{X^T\epsilon}{n}, \Delta> + \lambda\frac{||Y-X\hat{\beta}||_2}{\sqrt{n}} < sgn(\hat{\beta}),\Delta> &(*\frac{\Delta}{n})\\
+\frac{1}{n}||X \Delta||^2_2 &\le <\frac{X^T\epsilon}{n}, \Delta> + \lambda\frac{||Y-X\hat{\beta}||_2}{\sqrt{n}} (||\Delta_S||_1 -<sgn(\hat\beta_{S^c}), \beta_{S^c}>) &\text{(Holder's)}\\
+\frac{1}{n}||X \Delta||^2_2 &\le <\frac{X^T\epsilon}{n}, \Delta> + \frac{\lambda||Y-X\hat{\beta}||_2}{\sqrt{n}})(||\Delta_S||_1 - ||\Delta_{S^c}||_1)
+\end{aligned}
+$$
+
+
+## Part 3.4
+From the RE inequality and 3.3, we have
+
+$$
+\begin{aligned}
+\kappa||\Delta||_2^2 \le \frac{1}{n}||X\Delta||^2_2 &\le <\frac{X^T\epsilon}{n}, \Delta> + \frac{\lambda||Y-X\hat{\beta}||_2}{\sqrt{n}}(||\Delta_S||_1 - ||\Delta_{S^c}||_1)\\
+&\le<\frac{X^T\epsilon}{n}, \Delta> + \frac{\lambda||Y-X\hat{\beta}||_2}{\sqrt{n}}(||\Delta||_1) &(\Delta > ||\Delta_S||_1 - ||\Delta_{S^c}||_1)\\
+&\le<\frac{X^T\epsilon}{n}, \Delta> + \frac{\lambda||\epsilon||_2}{\sqrt{n}}(||\Delta||_1) \\
+&\le \frac{1}{n}||X^T\epsilon||_{\infty}||\Delta||_1 + \frac{\lambda||\epsilon||_2}{\sqrt{n}}(||\Delta||_1)&\text{(Holder's)}\\
+&\le \frac{3||\epsilon||_2}{2\sqrt{n}}\lambda\||\Delta||_1 &(||X^T\epsilon||_{\infty} \le \frac{\lambda \sqrt{n}||\epsilon||_2}{2})\\
+\kappa||\Delta||_2^2&\le \frac{3||\epsilon||_2}{2\sqrt{n}}\lambda\ \sqrt{s}||\Delta||_2 &(||\Delta||_1 \le \sqrt{s}||\Delta||_2)\\
+\kappa||\Delta||_2&\le \frac{3||\epsilon||_2}{2\sqrt{n}}\lambda\ \sqrt{s} &(\text{Div. by} ||\Delta||_2)\\
+||\hat{\beta}-\beta^*||_2&\le C\frac{||\epsilon||_2}{\sqrt{n}}\lambda\ \sqrt{s}\\
+\end{aligned}
+$$
+
+\newpage 
+## Part 3.5
+
+Let $\omega=\frac{||X^T\epsilon||_{\infty}}{||\epsilon||_2}$ and $s$ be a Bernoulli RV independent of $\omega$ such that $P(s=\pm1)=\frac{1}{2}$. Consider $P(s\omega>t)$.
+
+$$
+\begin{aligned}
+P(s\omega>t) &= E\left[P(s\omega>t|\omega) \right] &\text{(Adam's Law)}
+\end{aligned}
+$$
+
+Therefore, since $s$ is bounded by [-1,1], it is subgaussian with variance proxy 1.
+
+$$
+\begin{aligned}
+P(s\omega>t) &\le 2de^{-\frac{t^2}{2||X||_{max}^2}} &\text{(Hoeffding's)}\\
+\delta &= 2de^{-\frac{t^2}{2||X||_{max}^2}}\\
+\frac{\delta}{2d} &= e^{-\frac{t^2}{2||X||_{max}^2}}\\
+log(\frac{\delta}{2d}) &= -\frac{t^2}{2||X||_{max}^2}\\
+2||X||_{max}^2log(\frac{2d}{\delta})&=t^2\\
+||X||_{max}\sqrt{2log(\frac{2d}{\delta})}&=t\\
+\frac{||X^T\epsilon||_{\infty}}{||\epsilon||_2} &\le ||X||_{max}\sqrt{2log(\frac{2d}{\delta})} & (w.p \ 1-\delta)
+\end{aligned}
+$$
+
+From the paper, the score summarizes the estimation noise in their problem, and they choose their tuning parameter to be the smallest $\lambda /n$ that dominates this estimation noise. If they know the distribution of sigma, then the choose $\lambda$ to be some c times the $(1-\alpha)$ quantile. If the distribution is not known, then they rely on finite-sample or asymptotic upper bounds such as $\lambda=cn^{1/2}\Phi^{-1}(1-\alpha/2p)$. 
+
+
+
+

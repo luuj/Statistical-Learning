@@ -1,0 +1,543 @@
+---
+title: "BST235 HW3"
+author: "Jonathan Luu"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, fig.width = 12, fig.height = 8, comment = NA)
+library(glmnet)
+library(ggplot2)
+library(future.apply)
+library(dplyr)
+library(plot3D)
+library(car)
+plan(multisession)
+
+load("C:\\Users\\Jonathan\\Downloads\\Homework 3\\AirportSurveillance.RData")
+```
+
+# Question 1
+
+## Part 1.1
+
+Assume $\Delta_t \le \frac{2Ld^2_\chi}{t+2}$ is true. Looking at $\Delta_{t+1}$ by plugging in $\eta_t$ we get by induction:
+
+$$
+\begin{aligned}
+\Delta_{t+1} &\le \left(1-\frac{2}{2+t}\right)\frac{2Ld^2_\chi}{t+2} +\left(\frac{2}{2+t}\right)^2 \frac{Ld^2_\chi}{2}\\
+&\le\frac{2Ld^2_\chi}{t+2} - \left(\frac{2}{2+t}\right)^2\frac{Ld^2_\chi}{2} \le \frac{2Ld^2_\chi}{t+2}
+\end{aligned}
+$$
+
+## Part 1.2
+Assume $\lambda_t \ge \frac{t+2}{2}$ is true. By induction,
+
+$$
+\begin{aligned}
+\lambda_{t+1} &= \frac{1+\sqrt{1+4\lambda^2_t}}{2}\\
+&\ge \frac{1 + \sqrt{1+4\left(\frac{t+2}{2}\right)^2}}{2}\\
+&=\frac{1 + \sqrt{1+\left(t+2\right)^2}}{2}\\
+&\ge \frac{t+2}{2}
+\end{aligned}
+$$
+
+
+\newpage
+# Question 2
+## Part 2.1
+
+```{r, cache=TRUE}
+# Set parameters up
+set.seed(235)
+X<-matrix(rnorm(50000*5000),5000,50000)
+beta<-rep(10,20)
+eps<-rnorm(5000)
+y<-X[,1:20]%*%beta+eps
+lambda<-0.2295
+
+# Accessory functions
+# Calculate objective value
+getObjective <- function(beta){
+  sum((y-X%*%beta)^2)/(2*length(y)) + lambda*sum(abs(beta))
+}
+
+# Calculate full subgradient
+subgrad <- function(beta){
+  crossprod(X,(X%*%beta-y))/length(y) + lambda*sign(beta)
+}
+
+# Calculate partial l2 norm gradient
+partial.subgrad <- function(beta){
+  crossprod(X,(X%*%beta-y))/length(y)
+}
+
+# Calculate soft thresholding function
+soft.threshold <- function(beta, comparator){
+  sign(beta) * pmax(abs(beta)-comparator, 0)
+}
+
+# Calculate Huber loss
+huber_grad <- function(beta, comparator){
+  penalty <- (abs(beta) <= comparator)*(beta/comparator) + 
+    (abs(beta) > comparator)*(sign(beta)) 
+  crossprod(X,(X%*%beta-y))/length(y) + lambda*penalty
+}
+```
+
+```{r, cache=TRUE}
+# Gradient descent method
+grad.descent <- function(LR, initial_beta, max_iter){
+  beta <- initial_beta
+  obj.values <- numeric(max_iter)
+  
+  for (i in 1:max_iter){
+    beta <- beta - subgrad(beta)*LR
+    obj.values[i] <- getObjective(beta)
+  }
+  return(obj.values)
+}
+
+# Proximal gradient descent method
+prox.grad.descent <- function(LR, initial_beta, max_iter){
+  beta <- initial_beta
+  obj.values <- numeric(max_iter)
+  
+  for (i in 1:max_iter){
+    beta <- beta - LR*partial.subgrad(beta)
+    beta <- soft.threshold(beta, LR*lambda)
+    obj.values[i] <- getObjective(beta)
+  }
+  return(obj.values)
+}
+
+# FISTA - iteration version
+FISTA.v1 <- function(LR, initial_beta, max_iter){
+  v <- beta <- initial_beta
+  obj.values <- numeric(max_iter)
+
+  for (i in 1:max_iter){
+    prevbeta <- beta
+    beta <- v - LR*partial.subgrad(v)
+    beta <- soft.threshold(beta, LR*lambda)
+    obj.values[i] <- getObjective(beta)
+
+    v <- beta + i/(i+3)*(beta-prevbeta)
+  }
+  return(obj.values)
+}
+
+# FISTA - lambda version
+FISTA.v2 <- function(LR, initial_beta, max_iter, c.lambda = 1){
+  v <- beta <- initial_beta
+  obj.values <- numeric(max_iter)
+
+  for (i in 1:max_iter){
+    prevbeta <- beta
+    prevlambda <- c.lambda
+    beta <- v - LR*partial.subgrad(v)
+    beta <- soft.threshold(beta, LR*lambda)
+    obj.values[i] <- getObjective(beta)
+
+    c.lambda <- (1+sqrt(1+4*prevlambda^2))/2
+    v <- beta + (prevlambda-1)/c.lambda*(beta-prevbeta)
+  }
+  return(obj.values)
+}
+
+# Nesterov
+nesterov <- function(LR, initial_beta, max_iter, mu, c.lambda = 1){
+  v <- beta <- initial_beta
+  obj.values <- numeric(max_iter)
+
+  for (i in 1:max_iter){
+    prevbeta <- beta
+    prevlambda <- c.lambda
+    beta <- v - LR*huber_grad(v, mu)
+    obj.values[i] <- getObjective(beta)
+    
+    c.lambda <- (1+sqrt(1+4*prevlambda^2))/2
+    v <- beta + (prevlambda-1)/c.lambda*(beta-prevbeta)
+  }
+  return(obj.values)
+}
+
+# ADMM
+admm <- function(initial_beta, max_iter){
+  beta <- a <- b <- initial_beta
+  obj.values <- numeric(max_iter)
+
+  for (i in 1:max_iter){
+    temp <- crossprod(X,y) + rho*(a-b)
+    first.term <- diag(dim(X)[2])%*%temp
+    beta <- small.inverse%*%(X%*%temp)
+    beta <- first.term-crossprod(X, beta)
+    obj.values[i] <- getObjective(beta)
+
+    a <- soft.threshold(beta+b/rho, lambda/rho)
+    b <- b+rho*(beta-a)
+  }
+  return(obj.values)
+}
+```
+
+```{r, echo=FALSE, cache=TRUE}
+# Run functions
+ptm <- proc.time()
+beta.gd <- grad.descent(0.05, rep(0,dim(X)[2]), 200)
+beta.gd.time <- proc.time() - ptm
+
+ptm <- proc.time()
+beta.pgd <- prox.grad.descent(0.05, rep(0,dim(X)[2]), 200)
+beta.pgd.time <- proc.time() - ptm
+
+ptm <- proc.time()
+beta.fista.v1 <- FISTA.v1(0.05, rep(0,dim(X)[2]), 200)
+beta.fista.v1.time <- proc.time() - ptm
+
+ptm <- proc.time()
+beta.fista.v2 <- FISTA.v2(0.05, rep(0,dim(X)[2]), 200)
+beta.fista.v2.time <- proc.time() - ptm
+
+ptm <- proc.time()
+beta.nesterov <- nesterov(0.05, rep(0,dim(X)[2]), 200, mu=0.001)
+beta.nesterov.time <- proc.time() - ptm
+
+ptm <- proc.time()
+model.glmnet <- glmnet(X, y, family="gaussian", alpha=1)
+beta.glmnet <- coef(model.glmnet, s = lambda)
+glmnet.time <- proc.time() - ptm
+
+ptm <- proc.time()
+rho <- 1
+small.inverse <- solve(diag(dim(X)[1]) + tcrossprod(X,X))
+beta.admm <- admm(rep(0,dim(X)[2]), 200)
+beta.admm.time <- proc.time() - ptm
+```
+
+```{r, echo=FALSE}
+# Plot
+addToFrame <- function(og, addition, type){
+  temp <- as.data.frame(cbind(addition, type, 1:200))
+  colnames(temp) <- c("y", "type", "x")
+  og <- rbind(og, temp)
+  return(og)
+}
+
+results<-as.data.frame(cbind(log(beta.gd), "gd", 1:200))
+colnames(results) <- c("y", "type", "x")
+results<-addToFrame(results, log(beta.pgd), "pgd")
+results<-addToFrame(results, log(beta.fista.v1), "fista1")
+results<-addToFrame(results, log(beta.fista.v2), "fista2")
+results<-addToFrame(results, log(beta.nesterov), "nesterov")
+results<-addToFrame(results, log(beta.admm), "admm")
+results$y <- as.numeric(results$y)
+results$x <- as.integer(results$x)
+
+q <- ggplot(results, aes(x = x, y=y, colour=type)) + geom_line() + geom_point() + ggtitle("Number of iterations vs log objective value") + xlab("Iteration number") + ylab("log(objective value)")
+q
+
+# Times
+rbind(glmnet.time, beta.gd.time, beta.pgd.time, beta.fista.v1.time, beta.fista.v2.time, beta.nesterov.time, beta.admm.time)[,1:3]
+```
+
+The times for the user-implemented algorithms are pretty similar, hovering around over a minute for 200 iterations. However, ADMM takes significantly longer due to having to calculate the large inverse. The GLMNET method takes under 20 seconds to complete which is significantly faster, as it uses cyclical coordinate descent. Regarding performance, it seems that gradient descent performs the worst which is expected. Proximal gradient descent is slightly better and it also converges to a much lower objective value. FISTA1 and FISTA2 provide similar results, and they accelerate quite quickly and converge to a very low objective value. ADMM also seems to accelerate quite quickly and converges to a low objective value. Nesterov is better than gradient descent, but takes a while to converge and has a slightly higher objective value compared to FISTA and ADMM.
+
+\newpage
+## Part 2.2
+
+Since group lasso follows a very similar structure to normal lasso, we can exploit the group structure since the proximity operator for the group lasso is just the soft thresholding on each group, rather than on each individual. Therefore, the proximity operator for $\lambda \sum_{j=1}^J||\beta_{S_j}||_2$ is 
+
+$$
+\begin{aligned}
+S_\lambda(\beta_{S_j}) = \left\{\begin{array}{@{}ll@{}}\beta_{S_j} - \lambda \frac{\beta_{S_j}}{||\beta_{S_J}||_2} & \text{if}\ ||\beta_{S_j}||_2 > \lambda \\ 
+0 & \text{otherwise}\   \\
+\end{array}\right.\\
+\end{aligned}
+$$
+
+Therefore, our closed form updating step becomes
+
+$$
+\beta^{t+1} = S_{(LR)\lambda}(\beta^t - (\text{LR})X^T(X\beta^T-y))
+$$
+
+where LR is the learning rate and lambda is given.
+
+```{r, cache=TRUE}
+# SFT for groups
+new_sft <- function(beta, comparator, group){
+  beta<-tapply(beta, group, function(x){
+    max((1 - (comparator/norm(x, type="2"))),0)*x
+  })
+  
+  unlist(beta)
+}
+
+group.fista <- function(LR, initial_beta, max_iter, c.lambda = 1, group_size=4){
+  v <- beta <- initial_beta
+  obj.values <- numeric(max_iter)
+  
+  # Create group variable
+  j_length <- length(beta)/group_size
+  group <- factor(rep(1:j_length, each=group_size))
+
+  for (i in 1:max_iter){
+    prevbeta <- beta
+    prevlambda <- c.lambda
+    beta <- v - LR*partial.subgrad(v)
+    beta <- new_sft(beta, LR*lambda, group)
+    obj.values[i] <- getObjective(beta)
+
+    c.lambda <- (1+sqrt(1+4*prevlambda^2))/2
+    v <- beta + (prevlambda-1)/c.lambda*(beta-prevbeta)
+  }
+  return(obj.values)
+}
+```
+
+```{r, echo=FALSE}
+lambda <- 0.459
+beta.group.fista <- group.fista(0.05, rep(0,dim(X)[2]), 200)
+
+results<-addToFrame(results, log(beta.group.fista), "group")
+results$y <- as.numeric(results$y)
+results$x <- as.integer(results$x)
+
+q <- ggplot(results, aes(x = x, y=y, colour=type)) + geom_line() + geom_point() + ggtitle("Number of iterations vs log objective value") + xlab("Iteration number") + ylab("log(objective value)")
+q
+```
+
+Comparing the group lasso's plot to the previous methods, it seems that is converges very fast, similar to FISTA and ADMM. However, its objective value is higher, which is expected due to the increased lambda.
+
+\newpage
+
+# Question 3
+## Part 3.1
+
+```{r, eval=FALSE}
+x <- y <- z <- seq(-1,1,0.01)
+vals <- expand.grid(x,y,z)
+
+# Plot nuclear norm <= 1
+checkNorm <- function(x,y,z){
+  testMatrix <- matrix(c(x,y,y,z), ncol=2)
+  sum(svd(testMatrix)$d) <= 1
+}
+
+keep <- future_apply(vals, 1, function(x){
+  checkNorm(x[1], x[2], x[3])
+})
+
+vals.1 <- vals[keep,]
+plot.x <- vals.1$Var1
+plot.y <- vals.1$Var2*sqrt(2)
+plot.z <- vals.1$Var3
+scatter3D(plot.x, plot.y, plot.z)
+
+# Plot rank and operator norm
+checkNorm2 <- function(x,y,z){
+  testMatrix <- matrix(c(x,y,y,z), ncol=2)
+  rank <- rankMatrix(testMatrix)[1]
+  op <- svd(testMatrix)$d[1]
+  return(near(rank, 1) & near(op,1))
+}
+
+keep2 <- future_apply(vals, 1, function(x){
+  checkNorm2(x[1], x[2], x[3])
+})
+
+vals.2 <- vals[keep2,]
+
+plot.x.2 <- vals.2$Var1
+plot.y.2 <- vals.2$Var2*sqrt(2)
+plot.z.2 <- vals.2$Var3
+scatter3D(plot.x.2, plot.y.2, plot.z.2)
+```
+
+![Nuclear Norm](plot1.JPG)
+![Op Norm](plot2.JPG)
+
+The first set is the rings of the barrel (OP norm), while the second set is the barrel itself (Nuclear norm).
+
+\newpage
+## Part 3.2
+
+```{r, eval=FALSE}
+# Get matrices with nuclear norm = 1
+checkNorm3 <- function(x,y,z){
+  testMatrix <- matrix(c(x,y,y,z), ncol=2)
+  near(sum(svd(testMatrix)$d), 1)
+}
+
+keep3 <- future_apply(vals, 1, function(x){
+  checkNorm3(x[1], x[2], x[3])
+})
+
+vals.3 <- vals[keep3,]
+
+# Get their subgradient values
+getSub <- function(x,y,z){
+  singular <- svd(matrix(c(x,y,y,z), ncol=2))
+  sg <- tcrossprod(singular$u, singular$v)
+  return(c(x=sg[1,1], y=sg[1,2], z=sg[2,2]))
+}
+
+plot.vals <- t(future_apply(vals.3, 1, function(x){
+  getSub(x[1], x[2], x[3])
+}))
+
+plot.x.3 <- plot.vals[,1]
+plot.y.3 <- plot.vals[,2]*sqrt(2)
+plot.z.3 <- plot.vals[,3]
+plot.x.4 <- vals.3$Var1
+plot.y.4 <- vals.3$Var2*sqrt(2)
+plot.z.4 <- vals.3$Var3
+scatter3d(plot.x.4, plot.y.4, plot.z.4, axis.scales = TRUE)
+scatter3d(plot.x.3, plot.y.3, plot.z.3, axis.scales = TRUE)
+```
+
+![Nuclear Norm](plot3.JPG)
+![Subgradient](plot4.JPG)
+
+The first plot contains the nuclear norm ball with nuclear norm equal to 1. The second plot contains the subgradient arrows for the same coordinates.
+
+\newpage
+## Part 3.3
+
+Applying the first order optimization, we get 
+
+$$
+\begin{aligned}
+\frac{\partial}{\partial Z}\frac{1}{2}||X-Z||^2_F + \lambda||Z||_* \in 0\\
+\\Z - X + \lambda\partial ||Z||_* = 0
+\end{aligned}
+$$
+
+Looking at $||Z||_*$, the subgradient of this is
+
+$$
+UV^T + W
+$$
+
+subject to $\tilde{U}W=W\tilde{V}=0, ||W||_{op}\le1$. 
+
+Let X and Z be decomposed into $\tilde{U}_0D_0\tilde{V}_0 +\tilde{U}_1D_1\tilde{V}_1$, where $||\tilde{U}_0D_0\tilde{V}_0||_{op} > \lambda$ and $||\tilde{U}_1D_1\tilde{V}_1||_{op}\le \lambda$.
+
+We can then write 
+
+$$
+UV^T+W = \tilde{U}_0\tilde{V}_0^T + \frac{1}{\lambda}\tilde{U}_1D_1\tilde{V}_1
+$$
+
+since $||\tilde{U}_1D_1\tilde{V}_1||_{op} \le \lambda \Rightarrow ||\frac{1}{\lambda}\tilde{U}_1D_1\tilde{V}_1||_{op} \le 1$ which satisfies $||W||_{op}\le1$.
+Furthermore, $\tilde{U}_0W=W\tilde{V}_0=0$ by the nature of the decomposition. Using this subgradient, we have
+
+$$
+\begin{aligned}
+&Z - \tilde{U}_0D_0\tilde{V}_0 -\tilde{U}_1D_1\tilde{V}_1 + \lambda(\tilde{U}_0\tilde{V}_0^T + \frac{1}{\lambda}\tilde{U}_1D_1\tilde{V}_1) = 0\\
+&\hat{Z} = \tilde{U}_0D_0\tilde{V}_0^T - \lambda\tilde{U}_0\tilde{V}_0^T \\
+&\hat{Z} =\tilde{U}_0\text{diag}(D_0-\lambda)\tilde{V}_0^T
+\end{aligned}
+$$
+
+Since $||\tilde{U}_0D_0\tilde{V}_0||_{op} > \lambda$ by definition, we can write 
+
+$$
+\hat{Z} = \tilde{U}\text{diag}(\text{max}(D-\lambda),0)\tilde{V}^T
+$$
+
+\newpage
+## Part 3.4
+
+The ADMM algorithm is as follows:
+
+1. Initialize S=Y=0.
+2. $R_{k+1}=MS_{\frac{1}{\mu}}(M-S_k+Y_k/\mu)$ where MS is SVD thresholding
+3. $\text{S}_{k+1} = S_{\frac{\lambda}{\mu}}(M-R_{k+1}+Y_k/\mu)$
+4. $Y_{k=1}=Y_k + \mu(M-R_{k+1}-S_{k+1})$
+5. Repeat steps 2-4 until tolerance level is reached
+
+Some original frames:
+
+```{r, echo=FALSE}
+# Print original frames
+frame10 <- t(matrix(video[nrow(video):1,10], nrow=144))
+frame100 <- t(matrix(video[nrow(video):1,100], nrow=144))
+frame200 <- t(matrix(video[nrow(video):1,200], nrow=144))
+image(frame10, axes = FALSE, col = grey(seq(0, 1, length = 256))) 
+image(frame100, axes = FALSE, col = grey(seq(0, 1, length = 256))) 
+image(frame200, axes = FALSE, col = grey(seq(0, 1, length = 256))) 
+```
+
+```{r}
+# Matrix soft threshold
+msft <- function(input, mu){
+  singular <- svd(input)
+  new.d <- soft.threshold(singular$d, mu)
+  singular$u%*%diag(new.d)%*%t(singular$v)
+}
+
+calcObj <- function(L,S,lambda){
+  sum(svd(L)$d) + lambda*sum(abs(S))
+}
+
+robustPCA <- function(lambda=1/sqrt(25344), mu=0.002, iter=100){
+  S <- Y <- L <- 0
+  obs.tolerance <- numeric(iter)
+
+  for(i in 1:iter){
+    L <- msft(video-S+Y/mu, 1/mu)
+    S <- soft.threshold(video-L+Y/mu, lambda/mu)
+    Y <- Y + mu*(video-L-S)
+  
+    obs.tolerance[i] <- calcObj(L,S,lambda)
+  }
+  return(list(L,S, obs.tolerance))
+}
+```
+
+Foreground frames + 1 background frame:
+
+```{r, cache=TRUE, echo=FALSE}
+result <- robustPCA()
+
+frame10.S <- t(matrix(result[[2]][nrow(result[[2]]):1,10], nrow=144))
+image(frame10.S, axes = FALSE, col = grey(seq(0, 1, length = 256)))
+
+frame100.S <- t(matrix(result[[2]][nrow(result[[2]]):1,100], nrow=144))
+image(frame100.S, axes = FALSE, col = grey(seq(0, 1, length = 256))) 
+
+frame200.S <- t(matrix(result[[2]][nrow(result[[2]]):1,200], nrow=144))
+image(frame200.S, axes = FALSE, col = grey(seq(0, 1, length = 256))) 
+
+frame200.S <- t(matrix(result[[1]][nrow(result[[2]]):1,200], nrow=144))
+image(frame200.S, axes = FALSE, col = grey(seq(0, 1, length = 256)))
+
+# Plot
+frameplot<-as.data.frame(cbind(log(result[[3]]), 1:100))
+colnames(frameplot) <- c("y", "x")
+frameplot$y <- as.numeric(frameplot$y)
+frameplot$x <- as.integer(frameplot$x)
+q <- ggplot(frameplot, aes(x=x, y=y)) + geom_line() + geom_point() + ggtitle("Number of iterations vs log objective value") + xlab("Iteration number") + ylab("log(objective value)")
+q
+```
+
+Overall, it seems like the algorithm does a decent job of separating the foreground from the background frames. The last image is of the background, and it does a decent job of removing other people from the image besides the one person who stands still the entire time (so the algorithm thinks he's part of the background). From the number of iterations vs objective value plot, it seems to converge after 30 iterations.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
